@@ -27,11 +27,9 @@ class SuscriptoresController extends Controller
 
                 $suscr = collect(Cm_suscriptor::where('idsuscriptor', Cm_suscriptor::PREFIX . $id)
                     ->select(
-                        DB::raw('substr(idsuscriptor, 6, 15) as idsuscriptor'),
-                        DB::raw("cm_suscriptor.nombre || ' ' || cm_suscriptor.apellido AS nombre"),
-                        "cm_suscriptor.facturasconsaldoaseo",
-                        DB::raw("cm_suscriptor.saldopdteaseo AS SaldoPendienteAseo"),
-                        DB::raw("cm_suscriptor.saldopdteacueducto+cm_suscriptor.saldopdtealcantarillado+cm_suscriptor.saldopdteaseo AS SaldoPendiente")
+                        DB::raw('substr(idsuscriptor, 6, 15) as IdSuscriptor'),
+                        DB::raw("cm_suscriptor.saldopdteaseo AS SaldoActual"),
+                        DB::raw("cm_suscriptor.nombre || ' ' || cm_suscriptor.apellido AS Nombre"),
                     )->first());
 
                 if ($suscr->isEmpty()) {
@@ -39,32 +37,30 @@ class SuscriptoresController extends Controller
                     return array(
                         [
                             "estado" => 0,
-                            "descripcionestado" => "No se encontró información con los datos ingresados. Verifique la matrícula del suscriptor e intente nuevamente!",
+                            "DescripcionEstado" => "No se encontró información con los datos ingresados. Verifique la matrícula del suscriptor e intente nuevamente!",
                         ]
                     );
                 } else {
                     $cuentacobro = collect(Cm_factura::where('idsuscriptor', Cm_suscriptor::PREFIX . $id)
                         ->whereRaw("idcuentacobro IN (SELECT max(idcuentacobro) FROM cm_factura WHERE idsuscriptor=" . Cm_suscriptor::PREFIX . $id . ")")
-                        ->select(DB::raw('substr(idcuentacobro, 6, 15) as idcuentacobro'), 'idempresaaseo')
+                        ->select(DB::raw('substr(idcuentacobro, 6, 15) as idcuentacobro'))
                         ->first());
 
                     $saldoanterior = collect(Cm_cuentacobro::where('idsuscriptor', Cm_suscriptor::PREFIX . $id)
                         ->where('idcuentacobro', '<', Cm_suscriptor::PREFIX . $cuentacobro['idcuentacobro'])
                         ->where('saldopendientefactura', '<>', 0)
-                        ->select(DB::raw('sum(saldopendientefactura) as saldoanterior'))
+                        ->select(DB::raw('sum(saldopendientefactura) as SaldoAnterior'))
                         ->first());
 
 
 
-                    $merged = $suscr->merge($cuentacobro);
+                    $merged = $suscr;
                     $merged = $merged->merge($saldoanterior);
-                    $merged = $merged->forget('idempresaaseo');
 
                     $respuesta = array(
                         'estado' => 1,
-                        'descripcionestado' => 'Consulta Exitosa',
+                        'DescripcionEstado' => 'Consulta Exitosa',
                         'DatosSuscriptor' => $merged,
-                        "IdEmpresaAseo" => $cuentacobro['idempresaaseo']
                     );
 
 
@@ -74,7 +70,7 @@ class SuscriptoresController extends Controller
                 return array(
                     [
                         "estado" => 0,
-                        "descripcionestado" => "Actualmente nos encontramos en proceso de facturación. No es posible realizar la transacción en este momento!",
+                        "DescripcionEstado" => "Actualmente nos encontramos en proceso de facturación. No es posible realizar la transacción en este momento!",
                     ]
                 );
             }
@@ -82,7 +78,7 @@ class SuscriptoresController extends Controller
             return array(
                 [
                     "estado" => 0,
-                    "descripcionestado" => "El dato ingresado no es un suscriptor válido!",
+                    "DescripcionEstado" => "El dato ingresado no es un suscriptor válido!",
                 ]
             );
         }
@@ -106,12 +102,15 @@ class SuscriptoresController extends Controller
             ];
 
             $validated = $request->validate([
-                'suscriptor' => 'required|integer|min:1',
-                'cuentacobro' => 'required|integer|min:1',
-                'valorcupon' => 'required|integer|min:1',
+                'IdSuscriptor' => 'required|integer|min:1',
+                'Valor' => 'required|integer|min:1',
             ], $messages);
 
-            $cuentacobro = Cm_cuentacobro::find(Cm_suscriptor::PREFIX.$request->cuentacobro); // Attempt to find invoice by ID
+            $cuentacobro = collect(Cm_factura::where('idsuscriptor', Cm_suscriptor::PREFIX.$request->IdSuscriptor)
+            ->whereRaw("idcuentacobro IN (SELECT max(idcuentacobro) FROM cm_factura WHERE idsuscriptor=" . Cm_suscriptor::PREFIX.$request->IdSuscriptor . ")")
+            ->select(DB::raw('substr(idcuentacobro, 6, 15) as idcuentacobro'))
+            ->first());
+
 
             if ($cuentacobro) {
 
@@ -125,17 +124,22 @@ class SuscriptoresController extends Controller
                             // Bloquear la fila con el valor del consecutivo
                             $secuencia = DB::connection('oracle')->table('cs_secuencia')->where('IDSECUENCIA', 'CMCUPA_IDCUPONPAGO')->lockForUpdate()->first();
 
+                            $idcuentacobro = DB::connection('oracle')->table('cm_factura')->where('idsuscriptor', Cm_suscriptor::PREFIX.$request->IdSuscriptor)->whereRaw("idcuentacobro IN (SELECT max(idcuentacobro) FROM cm_factura WHERE idsuscriptor=" . Cm_suscriptor::PREFIX.$request->IdSuscriptor . ")")
+                            ->select(DB::raw('substr(idcuentacobro, 6, 15) as idcuentacobro'))
+                            ->first();
+
+
                             // Obtener el valor del consecutivo
                             $consecutivo = $secuencia->proximonumero;
 
                             // Insertar la nueva factura con el consecutivo obtenido
                             DB::connection('oracle')->table('cm_cuponpago')->insert([
                                 'idcuponpago' => Cm_suscriptor::PREFIX . $consecutivo,
-                                'valor' => $request->valorcupon,
+                                'valor' => $request->Valor,
                                 'fechageneracion' => date('Y-m-d'),
                                 'ditipocuponpago' => 2,
                                 'idestadocupon' => 1,
-                                'idcuentacobro' => Cm_suscriptor::PREFIX . $request->cuentacobro,
+                                'idcuentacobro' => $idcuentacobro->idcuentacobro,
                                 'idpais' => 57,
                                 'iddepartamento' => 81,
                                 'idmunicipio' => 1,
@@ -153,10 +157,10 @@ class SuscriptoresController extends Controller
                                 'Estado' => 1,
                                 'Descripcionestado' => 'Generación Exitosa',
                                 'DatosCupon' => [
-                                    'IdSuscriptor' => $request->input('suscriptor'),
+                                    'IdSuscriptor' => $request->input('IdSuscriptor'),
                                     'Id' => $consecutivo,
                                     'Fecha' => date('Y-m-d H:i:s'),
-                                    'Valor' => $request->input('valorcupon')
+                                    'Valor' => $request->input('Valor')
                                 ],
                             ];
                         });
@@ -171,7 +175,7 @@ class SuscriptoresController extends Controller
                     }
                 }
             } else {
-                return response()->json(['message' => 'La factura no existe.'], 404);
+                return response()->json(['message' => 'El suscriptor no tiene facturas.'], 404);
             }
         } catch (ValidationException $th) {
             return response()->json($th->validator->errors(), 422);
