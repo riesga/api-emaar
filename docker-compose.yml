@@ -1,0 +1,23 @@
+services:
+  php:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./app:/var/www/html
+    ports:
+      - "9000:9000"
+    environment:
+      - ORACLE_HOME=/usr/lib/oracle/21/client64
+      - LD_LIBRARY_PATH=/usr/lib/oracle/21/client64/lib
+      - PATH=/usr/lib/oracle/21/client64/bin:$PATH
+  web:
+    image: nginx:latest
+    ports:
+      - "9090:80"
+    volumes:
+      - ./:/var/www/html
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf
+      - ./fastcgi-php.conf:/etc/nginx/snippets/fastcgi-php.conf
+    depends_on:
+      - php
