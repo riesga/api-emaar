@@ -1,0 +1,10 @@
+{
+    "require": {
+        "yajra/laravel-oci8": "^5.4"
+    },
+    "config": {
+        "allow-plugins": {
+            "kylekatarnls/update-helper": true
+        }
+    }
+}

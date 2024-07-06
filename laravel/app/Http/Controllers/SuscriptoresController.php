@@ -36,7 +36,7 @@ class SuscriptoresController extends Controller
                     //return array(['error' => 'No se encontró información con los datos ingresados. Verifique la matrícula del suscriptor e intente nuevamente!']);
                     return array(
                         [
-                            "estado" => 0,
+                            "Estado" => 0,
                             "DescripcionEstado" => "No se encontró información con los datos ingresados. Verifique la matrícula del suscriptor e intente nuevamente!",
                         ]
                     );
@@ -46,21 +46,28 @@ class SuscriptoresController extends Controller
                         ->select(DB::raw('substr(idcuentacobro, 6, 15) as idcuentacobro'))
                         ->first());
 
-                    $saldoanterior = collect(Cm_cuentacobro::where('idsuscriptor', Cm_suscriptor::PREFIX . $id)
+                    $SaldoAnterior = collect(Cm_cuentacobro::where('idsuscriptor', Cm_suscriptor::PREFIX . $id)
                         ->where('idcuentacobro', '<', Cm_suscriptor::PREFIX . $cuentacobro['idcuentacobro'])
                         ->where('saldopendientefactura', '<>', 0)
                         ->select(DB::raw('sum(saldopendientefactura) as SaldoAnterior'))
                         ->first());
 
-
+                    if ($SaldoAnterior["saldoanterior"] == null) {
+                        $SaldoAnterior["saldoanterior"] = 0;
+                    }
 
                     $merged = $suscr;
-                    $merged = $merged->merge($saldoanterior);
+                    $merged = $merged->merge($SaldoAnterior);
 
                     $respuesta = array(
-                        'estado' => 1,
+                        'Estado' => 1,
                         'DescripcionEstado' => 'Consulta Exitosa',
-                        'DatosSuscriptor' => $merged,
+                        'DatosSuscriptor' => [
+                            "IdSuscriptor" => $id,
+                            "SaldoAnterior" => $SaldoAnterior["saldoanterior"],
+                            "SaldoActual" => $suscr["saldoactual"],
+                            "Nombre" => $suscr["nombre"]
+                        ]
                     );
 
 
@@ -69,7 +76,7 @@ class SuscriptoresController extends Controller
             } else {
                 return array(
                     [
-                        "estado" => 0,
+                        "Estado" => 0,
                         "DescripcionEstado" => "Actualmente nos encontramos en proceso de facturación. No es posible realizar la transacción en este momento!",
                     ]
                 );
@@ -77,7 +84,7 @@ class SuscriptoresController extends Controller
         } else {
             return array(
                 [
-                    "estado" => 0,
+                    "Estado" => 0,
                     "DescripcionEstado" => "El dato ingresado no es un suscriptor válido!",
                 ]
             );
@@ -155,12 +162,12 @@ class SuscriptoresController extends Controller
                             // Construir la respuesta
                             return [
                                 'Estado' => 1,
-                                'Descripcionestado' => 'Generación Exitosa',
+                                'DescripcionEstado' => 'Generación Exitosa',
                                 'DatosCupon' => [
                                     'IdSuscriptor' => $request->input('IdSuscriptor'),
                                     'Id' => $consecutivo,
                                     'Fecha' => date('Y-m-d H:i:s'),
-                                    'Valor' => $request->input('Valor')
+                                    'Valor' => intval($request->input('Valor')),
                                 ],
                             ];
                         });
