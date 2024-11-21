@@ -115,7 +115,7 @@ class SuscriptoresController extends Controller
 
             $cuentacobro = collect(Cm_factura::where('idsuscriptor', Cm_suscriptor::PREFIX.$request->IdSuscriptor)
             ->whereRaw("idcuentacobro IN (SELECT max(idcuentacobro) FROM cm_factura WHERE idsuscriptor=" . Cm_suscriptor::PREFIX.$request->IdSuscriptor . ")")
-            ->select(DB::raw('substr(idcuentacobro, 6, 15) as idcuentacobro'))
+            ->select('idcuentacobro')
             ->first());
 
 
@@ -132,7 +132,7 @@ class SuscriptoresController extends Controller
                             $secuencia = DB::connection('oracle')->table('cs_secuencia')->where('IDSECUENCIA', 'CMCUPA_IDCUPONPAGO')->lockForUpdate()->first();
 
                             $idcuentacobro = DB::connection('oracle')->table('cm_factura')->where('idsuscriptor', Cm_suscriptor::PREFIX.$request->IdSuscriptor)->whereRaw("idcuentacobro IN (SELECT max(idcuentacobro) FROM cm_factura WHERE idsuscriptor=" . Cm_suscriptor::PREFIX.$request->IdSuscriptor . ")")
-                            ->select(DB::raw('substr(idcuentacobro, 6, 15) as idcuentacobro'))
+                            ->select('idcuentacobro')
                             ->first();
 
 
